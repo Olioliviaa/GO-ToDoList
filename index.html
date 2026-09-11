@@ -222,7 +222,6 @@
     <ul id="taskList" class="task-list"></ul>
 
     <script>
-        // ✅ 已经帮你自动替换好了你的专属 URL，且保留了正确的单引号
         const API_URL = 'https://script.google.com/macros/s/AKfycbxbjP1uKeIq5mSgBB9uc67M-rQn-M4jkJd7IOc5GpktXwzdgJ2aMiEm_sggm2ek37NKmg/exec'; 
 
         let tasksData = [];
@@ -252,16 +251,14 @@
                 const li = document.createElement('li');
                 li.className = `task-item ${item.completed ? 'done' : ''}`;
                 
-                // 点击整个卡片都可以触发勾选
+                // 🛠️ 优化点击逻辑：防止复选框二次触发事件导致打勾状态和计数混乱
                 li.onclick = (e) => {
-                    if(e.target.tagName !== 'INPUT') {
-                        const checkbox = li.querySelector('input[type="checkbox"]');
-                        checkbox.checked = !checkbox.checked;
-                        toggleTask(item.id, checkbox.checked);
+                    if (e.target.tagName !== 'INPUT') {
+                        toggleTask(item.id, !item.completed);
                     }
                 };
                 
-                // 🛠️ 删除了 # 前缀和 padStart 补零，直接展示原生 ID
+                // 🛠️ 绑定内部组件的真实状态改变
                 li.innerHTML = `
                     <div class="checkbox-wrapper">
                         <input type="checkbox" ${item.completed ? 'checked' : ''} onchange="toggleTask(${item.id}, this.checked)">
@@ -273,7 +270,7 @@
                 listEl.appendChild(li);
             });
 
-            // 动态进度过渡
+            // 动态进度过渡（完全由实际数据的长度 total 决定，有多少显示多少）
             const total = tasksData.length;
             document.getElementById('progressText').innerText = `${completedCount} / ${total}`;
             const progressPercent = total > 0 ? (completedCount / total) * 100 : 0;
@@ -283,8 +280,11 @@
         // 处理打卡更新并回传 Google 表格
         async function toggleTask(id, isChecked) {
             const task = tasksData.find(t => t.id === id);
-            if (task) task.completed = isChecked;
-            renderTasks();
+            if (task) {
+                task.completed = isChecked;
+                // 本地数据实时重绘，让顶部进度数值瞬间发生增减，告别网络延时卡顿
+                renderTasks(); 
+            }
 
             try {
                 await fetch(API_URL, {
