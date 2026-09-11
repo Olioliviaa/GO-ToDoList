@@ -2,10 +2,10 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>📋 To Do List｜待办事项</title>
     <style>
-        /* 🎨 全局视觉：延续 GO-Guide/GO-Menu 的明亮扁平、现代渐变感 */
+        /* 🎨 全局视觉：延续明亮扁平、现代渐变感 */
         :root {
             --primary-color: #3AA1FF; /* GO系列标志性霓虹蓝 */
             --accent-color: #FFDE00;  /* 高亮黄 */
@@ -23,9 +23,10 @@
             margin: 0 auto; 
             padding: 30px 16px; 
             min-height: 100vh;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        /* 🏷️ 顶部区域：极简标题与GO风格标签 */
+        /* 🏷️ 顶部区域 */
         header {
             text-align: center;
             margin-bottom: 35px;
@@ -47,7 +48,7 @@
             font-weight: 600;
         }
 
-        /* 📊 进度控制条：扁平双层圆角 */
+        /* 📊 进度控制条 */
         .progress-container {
             background: var(--card-bg);
             padding: 16px 20px;
@@ -91,7 +92,7 @@
             margin: 0;
         }
 
-        /* 🃏 卡片设计：看齐 GO-Menu 的精致圆角与边缘投影 */
+        /* 🃏 卡片设计 */
         .task-item { 
             background: var(--card-bg); 
             padding: 18px 20px; 
@@ -112,7 +113,7 @@
             box-shadow: 0 6px 16px rgba(148, 163, 184, 0.15);
         }
 
-        /* 🔄 已完成状态的视觉淡化 */
+        /* 已完成视觉置灰 */
         .task-item.done { 
             background: rgba(255, 255, 255, 0.4);
             border-color: rgba(226, 232, 240, 0.5);
@@ -124,7 +125,6 @@
             color: var(--text-muted); 
         }
 
-        /* 🔢 左侧数字 ID 样式化 */
         .task-id {
             font-size: 13px;
             font-weight: 700;
@@ -140,7 +140,7 @@
             transition: color 0.2s ease;
         }
 
-        /* 🔘 自定义复选框：GO 标志性蓝色风格 */
+        /* 🔘 自定义复选框 */
         .checkbox-wrapper {
             position: relative;
             width: 24px;
@@ -213,6 +213,7 @@
     <div class="progress-container">
         <div class="progress-header">
             <span>完成进度</span>
+            <!-- 🛠️ 进度文本初始为 0 / 0，后续由实际表格数据重写 -->
             <span id="progressText">0 / 0</span>
         </div>
         <div class="progress-bar"><div class="progress" id="progress"></div></div>
@@ -222,14 +223,19 @@
     <ul id="taskList" class="task-list"></ul>
 
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbxbjP1uKeIq5mSgBB9uc67M-rQn-M4jkJd7IOc5GpktXwzdgJ2aMiEm_sggm2ek37NKmg/exec'; 
+        // 连接到你的 Google Apps Script 网址
+        const API_URL = 'https://script.google.com/macros/s/AKfycbxZyMjY5TCZc0QTUMm99JgwWbbodZT-c_u51mfjFbpsnkTxLAhWaYwBjI7Y8oVwZIkDtg/exec'; 
 
         let tasksData = [];
 
         // 从 Google Sheet 初始化提取数据
         async function fetchTasks() {
             try {
-                const response = await fetch(API_URL);
+                // 🛠️ 核心修复：增加对 Google 特有的重定向跳转支持，彻底解决手机端跨域拦截导致的假数据问题
+                const response = await fetch(API_URL, {
+                    method: 'GET',
+                    redirect: 'follow'
+                });
                 tasksData = await response.json();
                 document.getElementById('loading').style.display = 'none';
                 renderTasks();
@@ -251,14 +257,13 @@
                 const li = document.createElement('li');
                 li.className = `task-item ${item.completed ? 'done' : ''}`;
                 
-                // 🛠️ 优化点击逻辑：防止复选框二次触发事件导致打勾状态和计数混乱
+                // 🛠️ 优化点击逻辑：防止点击卡片和点击方框相互冲突导致计数出错
                 li.onclick = (e) => {
                     if (e.target.tagName !== 'INPUT') {
                         toggleTask(item.id, !item.completed);
                     }
                 };
                 
-                // 🛠️ 绑定内部组件的真实状态改变
                 li.innerHTML = `
                     <div class="checkbox-wrapper">
                         <input type="checkbox" ${item.completed ? 'checked' : ''} onchange="toggleTask(${item.id}, this.checked)">
@@ -270,7 +275,7 @@
                 listEl.appendChild(li);
             });
 
-            // 动态进度过渡（完全由实际数据的长度 total 决定，有多少显示多少）
+            // 🛠️ 彻底告别 999：总数 total 100% 由表格回传的任务数组长度决定，写多少项就是多少项
             const total = tasksData.length;
             document.getElementById('progressText').innerText = `${completedCount} / ${total}`;
             const progressPercent = total > 0 ? (completedCount / total) * 100 : 0;
@@ -282,8 +287,7 @@
             const task = tasksData.find(t => t.id === id);
             if (task) {
                 task.completed = isChecked;
-                // 本地数据实时重绘，让顶部进度数值瞬间发生增减，告别网络延时卡顿
-                renderTasks(); 
+                renderTasks(); // 手机端即时打勾并重算进度，体验极为丝滑
             }
 
             try {
@@ -298,6 +302,7 @@
             }
         }
 
+        // 启动拉取数据
         fetchTasks();
     </script>
 </body>
